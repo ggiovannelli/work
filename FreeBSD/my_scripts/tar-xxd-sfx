@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# ver. 20230411185401
+
+if ([ $# -le 1 ] && [ ${1}x = "--safe"x ]) || [ $# -lt 1 ]
+then
+      echo
+      echo "Sintassi: $0 [--safe] files1 files2 ..."
+      echo
+      exit
+fi
+
+WIDTH=56
+
+if [ ${1} = "--safe" ]
+then
+    shift 1
+    echo : $(date '+%Y.%m.%d-%H:%M:%S') $(hostname) $@
+    tar -cpPf - $@ | gzip -9 | xxd -p -c ${WIDTH} | awk 'BEGIN {printf("( xxd -p -r | tar -zwxPpvf - ) <<EOF\n")} {print} END { printf("EOF\n")}'
+else
+    echo : $(date '+%Y.%m.%d-%H:%M:%S') $(hostname) $@
+    tar -cpPf - $@ | gzip -9 | xxd -p -c ${WIDTH} | awk 'BEGIN {printf("( xxd -p -r | tar -zxPpvf - ) <<EOF\n")} {print} END { printf("EOF\n")}'
+fi
