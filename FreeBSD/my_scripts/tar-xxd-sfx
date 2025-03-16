@@ -16,7 +16,7 @@ helpFunction()
     echo "Some examples:"
     echo "$0 -j /root /etc/ssh/sshd_config           (archive both path, crypt them with openssl)"
     echo "$0 -j -e crypt /root /etc/ssh/sshd_config  (archive both path, crypt them with crypt/enigma)"
-    echo "$0 -k \"my b35t P4ssw0rd\" /root             (archive /root, crypt with openssl and key on cmdline)"
+    echo "$0 -k \"my b35t P4ssw0rd\" /root           (archive /root, crypt with openssl and key on cmdline)"
     echo "$0 /root /etc/ssh/sshd_config              (archive both path, NO encryption)"
     echo "$0 -y /root /etc/ssh/sshd_config           (same as above but ask confirmation before writing)"
     echo "$0 -b b64 -w 40 /root                      (archive /root, NO crypt, hexdumper base64, 80 col)"
