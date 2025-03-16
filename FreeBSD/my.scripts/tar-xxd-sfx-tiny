@@ -1,0 +1,21 @@
+#!/bin/sh
+
+if [ $# -lt 1 ]
+then
+      echo
+      echo "Syntax: $0 files1 files2 ..."
+      echo
+      exit
+fi
+
+WIDTH="56"
+XXD=$(which xxd)
+
+if [ ! -x ${XXD} ]
+then
+    echo Install pkg xxd
+    exit
+fi
+
+echo : $(date '+%Y.%m.%d-%H:%M:%S') $(hostname) ${DESC} $@
+tar -cpPf - $@ | gzip -9 | xxd -p -c ${WIDTH} | awk 'BEGIN {printf("( xxd -p -r | tar -zxPpvf - ) <<EOF\n")} {print} END {printf("EOF\n")}'
