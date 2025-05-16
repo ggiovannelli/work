@@ -1,134 +1,144 @@
 #!/bin/sh
+# -----------------------------------------------------------------------------
+# ver. 20250515144600
+# Uno strumento per archiviare, crittografare e codificare file e directory
+# -----------------------------------------------------------------------------
 
-# ver. 20240310120000
+# Informazioni sulla versione
+VERSION="20250515144600"
 
-helpFunction()
-{
+# Definizione della funzione di aiuto
+helpFunction() {
     echo
-    echo "Sintassi: $0 [-y] [-e openssl|crypt] [-k key | -j ] [-b xxd|b64|uue] [-w 56] [-d \"free note\"] files1 files2 ..."
-    echo " -y ask confirmations when extract."
-    echo " -e use encryption    Default openssl"
-    echo " -k encryption key    -j to ask for it"
-    echo " -b change hexdumper  Default xxd or base64|uuencode"
-    echo " -w octets per line   Default 56"
-    echo " -d text description"
+    echo "UTILIZZO: $0 [-y] [-e openssl|crypt] [-k chiave | -j] [-b xxd|b64|uue] [-w 56] [-d \"descrizione\"] file1 file2 ..."
     echo
-    echo "Some examples:"
-    echo "$0 -j /root /etc/ssh/sshd_config           (archive both path, crypt them with openssl)"
-    echo "$0 -j -e crypt /root /etc/ssh/sshd_config  (archive both path, crypt them with crypt/enigma)"
-    echo "$0 -k \"my b35t P4ssw0rd\" /root           (archive /root, crypt with openssl and key on cmdline)"
-    echo "$0 /root /etc/ssh/sshd_config              (archive both path, NO encryption)"
-    echo "$0 -y /root /etc/ssh/sshd_config           (same as above but ask confirmation before writing)"
-    echo "$0 -b b64 -w 40 /root                      (archive /root, NO crypt, hexdumper base64, 80 col)"
+    echo "OPZIONI:"
+    echo "  -y         Chiedi conferma durante l'estrazione"
+    echo "  -e tipo    Algoritmo di crittografia: openssl (default) o crypt"
+    echo "  -k chiave  Specifica la chiave di crittografia"
+    echo "  -j         Richiedi la chiave interattivamente"
+    echo "  -b tipo    Formato di codifica: xxd (default), b64 (base64) o uue (uuencode)"
+    echo "  -w num     Numero di ottetti per riga (default: 56)"
+    echo "  -d testo   Descrizione del pacchetto"
+    echo "  -l         Modalità legacy (non usa gli switch pP, estrae percorsi relativi)"
+    echo "  -h         Mostra questo messaggio di aiuto"
+    echo
+    echo "ESEMPI:"
+    echo "  $0 -j /root /etc/ssh/sshd_config"
+    echo "      Archivia entrambi i percorsi, cripta con openssl"
+    echo
+    echo "  $0 -j -e crypt /root /etc/ssh/sshd_config"
+    echo "      Archivia entrambi i percorsi, cripta con crypt/enigma"
+    echo
+    echo "  $0 -k \"my b35t P4ssw0rd\" /root"
+    echo "      Archivia /root, cripta con openssl e chiave da riga di comando"
+    echo
+    echo "  $0 /root /etc/ssh/sshd_config"
+    echo "      Archivia entrambi i percorsi, NESSUNA crittografia"
+    echo
+    echo "  $0 -y /root /etc/ssh/sshd_config"
+    echo "      Come sopra ma chiede conferma prima di scrivere"
+    echo
+    echo "  $0 -b b64 -w 40 /root"
+    echo "      Archivia /root, NESSUNA crittografia, codifica base64, 80 colonne"
     echo
     exit 1
 }
 
-
-readKey()
-{
+# Funzione per leggere la chiave di crittografia
+readKey() {
     echo
-    read -p "Enter key: " KEY
+    read -p "Inserisci la chiave: " KEY
+    echo
     KEY="\"${KEY}\" |"
-    echo
 }
 
-# initialize some DEFAULTS
+# Inizializzazione dei valori predefiniti
 SAFE=""
 KEY=""
 DESC=""
 WIDTH=56
-
+TARC="cpPf"
+TARD="zxPpvf"
 HEX="xxd"
 HEXC="xxd -p -c "
 HEXD="xxd -p -r "
+ENC=""
+CRYPT=""
+DECRYPT=""
 
-while getopts "h:j:y:e:k:w:d:b:" flag
-do
-        case "${flag}" in
-
-                y)  SAFE="w"
-                    shift 1;;
-
-                k)  KEY=${OPTARG}
-                    KEY="\"${KEY}\" |"
-                    shift 2;;
-
-                e)  ENC=${OPTARG}
-                    if [ "${ENC}" == "crypt" ]
-                    then
-                        CRYPT="crypt"
-                        DECRYPT="crypt |"
-                    else
-                        ENC="openssl"
-                        CRYPT="openssl enc -e -base64 -aes-128-ctr -nosalt -pbkdf2 -k"
-                        DECRYPT="openssl enc -d -base64 -aes-128-ctr -nosalt -pbkdf2 |"
-                        echo "- crypt defaults to openssl"
-                    fi
-                    shift 2;;
-
-                j)  readKey
-                    shift 1;;
-
-                w)  WIDTH=${OPTARG}
-                    shift 2;;
-
-                d)  DESC=${OPTARG}
-                    shift 2;;
-
-                b)  HEX=${OPTARG}
-                    if [ "${HEX}" == "b64" ]
-                    then
-                        HEXC="base64 -w"
-                        HEXD="base64 -d"
-                    elif [ "${HEX}" == "uue" ]
-                    then
-                        HEXC="uuencode -m archive.tgz"
-                        HEXD="uudecode -o /dev/stdout"
-                    else [ "${HEX}" == "xxd" ]
-                        HEXC="xxd -p -c "
-                        HEXD="xxd -p -r "
-                        echo
-                        echo "- hexdumper defaults to xxd"
-                    fi
-                    shift 2;;
-
-                h)  helpFunction;;
-
-                ?)  helpFunction;;
-        esac
+# Elaborazione dei parametri
+while getopts "hyjle:k:w:d:b:" flag; do
+    case "${flag}" in
+        y)  SAFE="w" ;;
+        k)  KEY="${OPTARG}"
+            KEY="\"${KEY}\" |" ;;
+        e)  ENC="${OPTARG}"
+            if [ "${ENC}" == "crypt" ]; then
+                CRYPT="crypt"
+                DECRYPT="crypt |"
+            else
+                ENC="openssl"
+                CRYPT="openssl enc -e -base64 -aes-128-ctr -nosalt -pbkdf2 -k"
+                DECRYPT="openssl enc -d -base64 -aes-128-ctr -nosalt -pbkdf2 |"
+                echo "- Crittografia impostata su openssl (default)"
+            fi ;;
+        j)  readKey ;;
+        w)  WIDTH="${OPTARG}" ;;
+        d)  DESC="${OPTARG}" ;;
+        b)  HEX="${OPTARG}"
+            case "${HEX}" in
+                b64) HEXC="base64 -w"
+                     HEXD="base64 -d" ;;
+                uue) HEXC="uuencode -m archive.tgz"
+                     HEXD="uudecode -o /dev/stdout" ;;
+                xxd|*) HEX="xxd"
+                     HEXC="xxd -p -c "
+                     HEXD="xxd -p -r "
+                     echo "- Formato di codifica impostato su xxd (default)" ;;
+            esac ;;
+        l)  TARC="cf"
+            TARD="zxvf" ;;
+        h|?) helpFunction ;;
+    esac
 done
 
-if ( [ ! -z "${SAFE}" ] && [ $# -lt 1 ] ) || ( [ ! -z "${KEY}" ] && [ $# -lt 1 ] ) || ( [ ! -z "${DESC}" ] && [ $# -lt 1 ] ) || [ $# -lt 1 ]
-then
+# Aggiustamento degli indici dei parametri
+shift $((OPTIND-1))
+
+# Verifica che sia stato specificato almeno un file
+if [ $# -lt 1 ]; then
+    echo "Errore: è necessario specificare almeno un file o directory da archiviare."
     helpFunction
 fi
 
-if [ ! -z "${DESC}" ]
-then
+# Gestione della descrizione
+if [ -n "${DESC}" ]; then
     DESC=\'"${DESC}"\'
 fi
 
-# Fix for different width lenghts
+# Aggiustamento della larghezza per diversi formati di codifica
 case ${HEX} in
-    "b64") WIDTH=`expr ${WIDTH} \* 2`;;
-    "uue") WIDTH=""
+    "b64") WIDTH=$((WIDTH * 2)) ;;
+    "uue") WIDTH="" ;;
 esac
 
-# We have setup a KEY but not an ENC so default it to openssl
-if [ ! -z "${KEY}" ] && [ -z "${ENC}" ]
-then
+# Configurazione della crittografia se è stata specificata una chiave ma non un algoritmo
+if [ -n "${KEY}" ] && [ -z "${ENC}" ]; then
     ENC="openssl"
     CRYPT="openssl enc -e -base64 -aes-128-ctr -nosalt -pbkdf2 -k"
     DECRYPT="openssl enc -d -base64 -aes-128-ctr -nosalt -pbkdf2 |"
 fi
 
-# We have the ENC but not the KEY. Read one.
-if [ -z "${KEY}" ] && [ ! -z "${ENC}" ]
-then
+# Richiedi la chiave se è stato specificato un algoritmo ma non una chiave
+if [ -z "${KEY}" ] && [ -n "${ENC}" ]; then
     readKey
 fi
 
-echo : $(date '+%Y.%m.%d-%H:%M:%S') $(hostname) ${DESC} $@
-CMD="( tar -cpPf - $@ | gzip -9 | ${CRYPT} ${KEY} ${HEXC} ${WIDTH} ) 2>/dev/null | awk -v SAFE=${SAFE} 'BEGIN {printf(\"( ${HEXD} | ${DECRYPT} tar -%szxPpvf - ) <<EOF\n\"), SAFE} {print} END { printf(\"EOF\n\")}'"
+# Mostra intestazione con informazioni sull'esecuzione
+echo "# $(date '+%Y.%m.%d-%H:%M:%S') $(hostname) ${DESC} $@"
+
+# Costruzione e esecuzione del comando
+CMD="( tar -${TARC} - $@ | gzip -9 | ${CRYPT} ${KEY} ${HEXC} ${WIDTH} ) 2>/dev/null | awk -v SAFE=${SAFE} 'BEGIN {printf(\"( ${HEXD} | ${DECRYPT} tar -%s${TARD} - ) <<EOF\\n\"), SAFE} {print} END { printf(\"EOF\\n\")}'"
+
 eval ${CMD}
