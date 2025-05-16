@@ -1,21 +1,40 @@
 #!/bin/sh
+# -----------------------------------------------------------------------------
+# Script di archiviazione semplice - versione 20250515
+# Crea un archivio tar+gzip autoestrayente con codifica xxd
+# -----------------------------------------------------------------------------
 
-if [ $# -lt 1 ]
-then
-      echo
-      echo "Syntax: $0 files1 files2 ..."
-      echo
-      exit
+# Funzione di aiuto
+showHelp() {
+    echo
+    echo "Utilizzo: $0 file1 file2 ..."
+    echo "Crea un archivio autoestrayente dei file specificati."
+    echo
+    exit 1
+}
+
+# Verifica che ci siano argomenti
+if [ $# -lt 1 ]; then
+    showHelp
 fi
 
-WIDTH="56"
-XXD=$(which xxd)
+# Configurazione
+WIDTH="56"             # Larghezza di output per xxd
+TARC="cpPf"            # Opzioni tar per la creazione
+TARD="zxPpvf"          # Opzioni tar per l'estrazione
 
-if [ ! -x ${XXD} ]
-then
-    echo Install pkg xxd
-    exit
+# Verifica disponibilità di xxd
+XXD=$(which xxd 2>/dev/null)
+if [ ! -x "${XXD}" ]; then
+    echo "Errore: xxd non trovato. Installare il pacchetto xxd."
+    exit 2
 fi
 
-echo : $(date '+%Y.%m.%d-%H:%M:%S') $(hostname) ${DESC} $@
-tar -cpPf - $@ | gzip -9 | xxd -p -c ${WIDTH} | awk 'BEGIN {printf("( xxd -p -r | tar -zxPpvf - ) <<EOF\n")} {print} END {printf("EOF\n")}'
+# Mostra intestazione
+echo "# $(date '+%Y.%m.%d-%H:%M:%S') $(hostname) $@"
+
+# Costruzione del comando
+CMD="( tar -${TARC} - $@ | gzip -9 | xxd -p -c ${WIDTH} ) 2>/dev/null | awk 'BEGIN {printf(\"( xxd -p -r | tar -${TARD} - ) <<EOF\\n\")} {print} END { printf(\"EOF\\n\")}'"
+
+# Esecuzione
+eval ${CMD}
