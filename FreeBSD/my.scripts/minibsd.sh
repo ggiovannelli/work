@@ -2,7 +2,7 @@
 # Script to create a clean FreeBSD image (no pkg installed)
 
 # Variables
-IMG_FILE="freebsd-clean.img"
+IMG_FILE="miniBSD.img"
 IMG_SIZE_MB=1536  # Size in MB (1536 = 1.5GB)
 MNT_POINT="/mnt/imgbuild"
 
@@ -186,6 +186,28 @@ gpart bootcode -b /boot/pmbr -p /boot/gptboot -i 1 $MD_DEV
 # Configuration
 echo -e "\n8. Configuring system..."
 
+# Create custom SSH config directory
+mkdir -p $MNT_POINT/usr/local/etc
+
+# Custom sshd_config
+cat > $MNT_POINT/usr/local/etc/sshd_config << 'EOF'
+# Custom SSH configuration for FreeBSD minimal image
+
+# Performance optimizations for VM
+UseDNS no
+TCPKeepAlive yes
+ClientAliveInterval 120
+
+# Allow root login (change to 'prohibit-password' for key-only)
+PermitRootLogin yes
+
+# PAM is needed for FreeBSD
+UsePAM yes
+
+# SFTP subsystem
+Subsystem sftp /usr/libexec/sftp-server
+EOF
+
 # fstab
 cat > $MNT_POINT/etc/fstab << EOF
 # Device                Mountpoint      FStype  Options Dump    Pass
@@ -201,8 +223,11 @@ hostname="freebsd-clean"
 # Network
 ifconfig_DEFAULT="DHCP"
 
-# Base services
+# SSH with custom config
 sshd_enable="YES"
+sshd_flags="-f /usr/local/etc/sshd_config"
+
+# Other services
 sendmail_enable="NO"
 sendmail_submit_enable="NO"
 sendmail_outbound_enable="NO"
@@ -301,6 +326,26 @@ rm -f $MNT_POINT/etc/ssh/ssh_host_*
 # History and temporary files
 rm -f $MNT_POINT/root/.history
 rm -f $MNT_POINT/root/.viminfo
+
+# Clean user accounts - keep only system users
+echo "   Cleaning non-system user accounts..."
+# Backup original files
+cp $MNT_POINT/etc/passwd $MNT_POINT/etc/passwd.orig
+cp $MNT_POINT/etc/master.passwd $MNT_POINT/etc/master.passwd.orig
+cp $MNT_POINT/etc/group $MNT_POINT/etc/group.orig
+
+# Keep only users with UID < 1000 (system users)
+awk -F: '$3 < 1000 || $1 == "nobody" {print}' $MNT_POINT/etc/passwd.orig > $MNT_POINT/etc/passwd
+awk -F: '$3 < 1000 || $1 == "nobody" {print}' $MNT_POINT/etc/master.passwd.orig > $MNT_POINT/etc/master.passwd
+
+# Keep only system groups
+awk -F: '$3 < 1000 || $1 == "nobody" || $1 == "nogroup" {print}' $MNT_POINT/etc/group.orig > $MNT_POINT/etc/group
+
+# Rebuild password database
+pwd_mkdb -p -d $MNT_POINT/etc $MNT_POINT/etc/master.passwd
+
+# Remove backup files
+rm -f $MNT_POINT/etc/*.orig
 
 # Show disk usage
 echo -e "\n10. Disk usage:"
