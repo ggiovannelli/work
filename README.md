@@ -53,7 +53,7 @@ A script to create minimal, optimized FreeBSD images from an existing FreeBSD in
 
 ```bash
 # Download the script
-fetch https://github.com/yourusername/miniBSD/raw/main/miniBSD.sh
+fetch https://github.com/ggiovannelli/miniBSD/raw/main/miniBSD.sh
 
 # Make it executable
 chmod +x miniBSD.sh
