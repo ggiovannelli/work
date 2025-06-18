@@ -10,6 +10,7 @@ SCRIPT_PATH=$(realpath "$0")
 # Set environment variables
 export ASSUME_ALWAYS_YES=YES
 export PAGER=/bin/cat
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 
 # ========================================
 # COMMAND CONFIGURATION
@@ -22,6 +23,9 @@ freebsd-update install
 '
 
 # Commands for STEP 2
+# Modify:
+# fetch -o- https://fbsdupdate.estracom.it/free/upd-fbsd-pkgs | sh
+# with your own commands to upgrade packages.
 PHASE2_CMDS='
 freebsd-update install
 fetch -o- https://fbsdupdate.estracom.it/free/upd-fbsd-pkgs | sh
@@ -81,7 +85,18 @@ phase1_upgrade() {
         
         # Execute the command
         eval "$cmd"
-        if [ $? -ne 0 ]; then
+        cmd_exit_code=$?
+        
+        # Check if it's freebsd-update install with "No updates" message
+        if [ $cmd_exit_code -ne 0 ] && echo "$cmd" | grep -q "freebsd-update install"; then
+            # Check if the error is just "No updates are available"
+            if freebsd-update install 2>&1 | grep -q "No updates are available to install"; then
+                echo "    Note: No updates available (this is normal)"
+                cmd_exit_code=0
+            fi
+        fi
+        
+        if [ $cmd_exit_code -ne 0 ]; then
             echo ""
             echo "==============================================="
             echo "ERROR: Command failed: $cmd"
@@ -178,8 +193,24 @@ phase2_upgrade() {
         echo "==> Executing command $cmd_num: $cmd"
         
         # Execute the command
-        eval "$cmd"
-        if [ $? -ne 0 ]; then
+        if echo "$cmd" | grep -q "freebsd-update install"; then
+            # Special handling for freebsd-update install
+            output=$(eval "$cmd" 2>&1)
+            cmd_exit_code=$?
+            echo "$output"
+            
+            # Check if the only issue is "No updates are available"
+            if [ $cmd_exit_code -ne 0 ] && echo "$output" | grep -q "No updates are available to install"; then
+                echo "    Note: No updates available (this is normal)"
+                cmd_exit_code=0
+            fi
+        else
+            # Normal command execution
+            eval "$cmd"
+            cmd_exit_code=$?
+        fi
+        
+        if [ $cmd_exit_code -ne 0 ]; then
             echo ""
             echo "==============================================="
             echo "ERROR: Command failed: $cmd"
