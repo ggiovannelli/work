@@ -1,0 +1,99 @@
+#!/bin/sh
+# -----------------------------------------------------------------------------
+# Script di archiviazione cross-platform - versione 20250827
+# Crea archivi autoestrayenti per Unix/Linux e Windows
+# -----------------------------------------------------------------------------
+
+# Funzione di aiuto
+showHelp() {
+    echo ""
+    echo "Utilizzo: $0 [opzioni] file1 file2 ..."
+    echo ""
+    echo "Opzioni:"
+    echo "  -u    Output per Unix/Linux (default)"
+    echo "  -w    Output per Windows PowerShell (copia-incolla diretto)"
+    echo "  -d    Output dual-platform (funziona su entrambi)"
+    echo "  -h    Mostra questo aiuto"
+    echo ""
+    echo "Esempi:"
+    echo "  $0 file.txt                    # Output standard Unix"
+    echo "  $0 -w file.txt                 # Output per Windows PowerShell"
+    echo "  $0 -d file.txt                 # Output che funziona su entrambi"
+    echo ""
+    exit 0
+}
+
+# Configurazione predefinita
+OUTPUT_TYPE="unix"
+WIDTH="56"
+TARC="cpf"            # Opzioni tar per la creazione
+TARD="zxvf"           # Opzioni tar per l'estrazione
+
+# Processa le opzioni
+while getopts "uwdh" opt; do
+    case $opt in
+        u) OUTPUT_TYPE="unix" ;;
+        w) OUTPUT_TYPE="windows" ;;
+        d) OUTPUT_TYPE="dual" ;;
+        h) showHelp ;;
+        *) echo "Opzione non valida: -$OPTARG"; showHelp ;;
+    esac
+done
+shift $((OPTIND-1))
+
+# Verifica che ci siano file da archiviare
+if [ $# -lt 1 ]; then
+    echo "Errore: specificare almeno un file da archiviare"
+    showHelp
+fi
+
+# Verifica disponibilità di xxd
+XXD=$(which xxd 2>/dev/null)
+if [ ! -x "${XXD}" ]; then
+    echo "Errore: xxd non trovato. Installare il pacchetto xxd."
+    exit 2
+fi
+
+# Genera l'archivio hex-encoded
+HEX_DATA=$(tar -${TARC} - "$@" 2>/dev/null | gzip -9 | xxd -p -c ${WIDTH})
+
+# Mostra intestazione
+echo "# Archive created: $(date '+%Y.%m.%d-%H:%M:%S') $(hostname)"
+echo "# Files: $@"
+echo "# Type: $OUTPUT_TYPE"
+echo ""
+
+case $OUTPUT_TYPE in
+    unix)
+        # Output standard Unix/Linux
+        echo "( xxd -p -r | tar -${TARD} - ) <<EOF"
+        echo "$HEX_DATA"
+        echo "EOF"
+        ;;
+        
+    windows)
+        # Output per Windows PowerShell (copia-incolla diretto)
+        echo "# Copy and paste this entire block into PowerShell:"
+        echo ""
+        echo "\$h=@'"
+        echo "$HEX_DATA"
+        echo "'@;\$x=\$h-replace'\s+','';\$b=New-Object byte[](\$x.Length/2);for(\$i=0;\$i-lt\$x.Length;\$i+=2){\$b[\$i/2]=[Convert]::ToByte(\$x.Substring(\$i,2),16)};\$g=\"\$env:TEMP\\e\$(Get-Random).gz\";[IO.File]::WriteAllBytes(\$g,\$b);tar -zxvf \$g;rm \$g"
+        ;;
+        
+    dual)
+        # Output dual-platform (con istruzioni per entrambi)
+        echo "# === DUAL PLATFORM ARCHIVE ==="
+        echo "#"
+        echo "# For Unix/Linux, copy and run these lines:"
+        echo "# ---------------------------------------------"
+        echo "( xxd -p -r | tar -${TARD} - ) <<EOF"
+        echo "$HEX_DATA"
+        echo "EOF"
+        echo ""
+        echo "# For Windows PowerShell, copy and run this block:"
+        echo "# ---------------------------------------------"
+        echo "\$h=@'"
+        echo "$HEX_DATA"
+        echo "'@;\$x=\$h-replace'\s+','';\$b=New-Object byte[](\$x.Length/2);for(\$i=0;\$i-lt\$x.Length;\$i+=2){\$b[\$i/2]=[Convert]::ToByte(\$x.Substring(\$i,2),16)};\$g=\"\$env:TEMP\\e\$(Get-Random).gz\";[IO.File]::WriteAllBytes(\$g,\$b);tar -zxvf \$g;rm \$g"
+        ;;
+esac
