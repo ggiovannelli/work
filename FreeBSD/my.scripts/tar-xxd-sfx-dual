@@ -1,5 +1,5 @@
 #!/bin/sh
-# tar-xxd-sfx - Simplified Unix version
+# tar-xxd-sfx-dual - Aligned with tiny version
 
 # Check parameters
 if [ $# -eq 0 ] || [ "$1" = "-h" ]; then
@@ -18,42 +18,33 @@ fi
 
 # Set defaults
 T="unix"
-F="$@"
+WIDTH="56"
+TARC="cpPf"    # Same as tiny
+TARD="zxPvf"   # For Unix output
 
 # Check for options
 case "$1" in
-    -u) T="unix"; shift; F="$@" ;;
-    -w) T="windows"; shift; F="$@" ;;
-    -d) T="dual"; shift; F="$@" ;;
-    *) T="unix"; F="$@" ;;
+    -u) T="unix"; shift ;;
+    -w) T="windows"; shift ;;
+    -d) T="dual"; shift ;;
 esac
 
-# Create temp files
-G="/tmp/a$$.gz"
-H="/tmp/a$$.hex"
-
 # Show header
-echo ": $(date '+%Y.%m.%d-%H:%M:%S') $(hostname) $F"
+echo ": $(date '+%Y.%m.%d-%H:%M:%S') $(hostname) $@"
 echo
-
-# Create archive
-tar -czf "$G" $F 2>/dev/null
-xxd -p -c 9999 "$G" > "$H"
 
 # Output based on type
 if [ "$T" != "windows" ]; then
     echo ": For Unix/Linux:"
-    echo "( xxd -p -r | tar -zxvf - ) <<EOF"
-    xxd -p -c 56 "$G"
-    echo "EOF"
+    # Use exact same command as tiny
+    CMD="( tar -${TARC} - $@ | gzip -9 | xxd -p -c ${WIDTH} ) 2>/dev/null | awk 'BEGIN {printf(\"( xxd -p -r | tar -${TARD} - ) <<EOF\\n\")} {print} END { printf(\"EOF\\n\")}'"
+    eval ${CMD}
 fi
 
 [ "$T" = "dual" ] && echo && echo
 
 if [ "$T" != "unix" ]; then
     echo ": For Windows with xxd:"
-    echo "echo $(cat "$H") | xxd -p -r | tar -zxvf -"
+    # For Windows, use cpf without P
+    echo "echo $(tar -cpf - "$@" 2>/dev/null | gzip -9 | xxd -p -c 9999) | xxd -p -r | tar -zxvf -"
 fi
-
-# Cleanup
-rm -f "$G" "$H"
